@@ -2623,8 +2623,32 @@ function closeSignaturePad(confirmed){
     octx.fillStyle = '#ffffff'; octx.fillRect(0,0,out.width,out.height);
     octx.drawImage(src, 0, 0, out.width, out.height);
     result = out.toDataURL('image/jpeg', 0.78);
+
+    // أول مرة أي حد يرسم توقيعًا (ومفيش عنده توقيع محفوظ أصلًا)،
+    // نعرض عليه حفظه لسهولة استخدامه في المرات القادمة
+    if(currentUser && !currentUser.savedSignature){
+      setTimeout(()=>{
+        if(confirm('هل ترغب في حفظ هذا التوقيع لاستخدامه مباشرة في المرات القادمة، بدلًا من رسمه في كل مرة؟')){
+          offerSaveSignature(result);
+        }
+      }, 200);
+    }
   }
   if(sigResolveFn){ sigResolveFn(result); sigResolveFn = null; }
+}
+async function offerSaveSignature(sig){
+  try{
+    const {data, error} = await sb.rpc('set_my_signature', {p_emp_id: currentUser.id, p_signature: sig});
+    if(error) throw error;
+    if(!data.success){ return; }
+    currentUser.savedSignature = sig;
+    try{
+      const saved = JSON.parse(localStorage.getItem('ls_session') || 'null');
+      if(saved){ saved.employee = {...saved.employee, savedSignature: sig}; localStorage.setItem('ls_session', JSON.stringify(saved)); }
+    }catch(e){}
+  }catch(err){
+    console.error('تعذر حفظ التوقيع', err);
+  }
 }
 
 
