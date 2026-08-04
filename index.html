@@ -730,6 +730,14 @@ tr:last-child td{border-bottom:none;}
           <div class="card-title">الأمان</div>
           <button class="btn btn-primary" onclick="openChangePassword()">🔒 تغيير كلمة المرور</button>
         </div>
+        <div class="card" id="backupCard" style="display:none;">
+          <div class="card-title">نسخة احتياطية</div>
+          <div style="font-size:var(--fs-xs); color:var(--tx-muted); margin-bottom:14px;">
+            تنزيل نسخة كاملة من كل بيانات النظام (الموظفين، الطلبات، السجل) كملف Excel واحد على جهازك.
+          </div>
+          <div id="backupReminderBanner"></div>
+          <button class="btn btn-primary" id="backupNowBtn" onclick="backupNow()">💾 Backup Now</button>
+        </div>
         <div class="card">
           <div class="card-title">توقيعي المحفوظ</div>
           <div style="font-size:var(--fs-xs); color:var(--tx-muted); margin-bottom:14px;">
@@ -990,6 +998,21 @@ tr:last-child td{border-bottom:none;}
   </div>
 </div>
 
+<div class="overlay show" id="connectionRetryOverlay" style="z-index:999; background:var(--bg);">
+  <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; text-align:center; padding:20px;">
+    <div id="connectionLoadingState">
+      <div style="width:52px; height:52px; border:4px solid var(--bd-light); border-top-color:var(--teal); border-radius:50%; animation:spin .9s linear infinite; margin:0 auto 22px;"></div>
+      <div id="connectionRetryMessage" style="font-size:var(--fs-lg); font-weight:800; color:var(--tx-main);">جاري تشغيل الخدمة، يرجى الانتظار...</div>
+    </div>
+    <div id="connectionFailedState" style="display:none;">
+      <div style="font-size:40px; margin-bottom:14px;">⚠️</div>
+      <div style="font-size:var(--fs-lg); font-weight:800; color:var(--tx-main); margin-bottom:10px;">تعذر الاتصال بالخدمة حاليًا</div>
+      <div style="font-size:var(--fs-sm); color:var(--tx-muted); margin-bottom:20px;">يرجى التأكد من اتصالك بالإنترنت والمحاولة مرة أخرى.</div>
+      <button class="btn btn-primary" onclick="location.reload()">إعادة المحاولة</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="sigOverlay">
   <div class="modal" role="dialog" aria-modal="true">
     <button class="modal-close" aria-label="إغلاق" onclick="closeSignaturePad(false)">✕</button>
@@ -1163,6 +1186,7 @@ async function completeLogin(emp, token){
   document.getElementById('navGroupAdmin').style.display = isFullAdmin(emp.role) ? 'block' : 'none';
   document.getElementById('navReports').style.display = isFullAdmin(emp.role) ? 'flex' : 'none';
   document.getElementById('navBalanceAdjust').style.display = (isFullAdmin(emp.role) || emp.role==='HRHead') ? 'flex' : 'none';
+  const bkc = document.getElementById('backupCard'); if(bkc) bkc.style.display = isFullAdmin(emp.role) ? 'block' : 'none';
   const isApproverRole = ['Manager','DeptHead','HRHead','PayrollOfficer'].includes(emp.role) || isFullAdmin(emp.role);
   document.getElementById('navRequestsLabel').textContent = isApproverRole ? '📝 الاعتماد' : '📝 طلباتي';
   const delc = document.getElementById('delegationCard');
@@ -1358,7 +1382,7 @@ document.addEventListener('click', (e)=>{
     if(item.dataset.page==='balanceadjust') renderBalanceAdjustTable();
     if(item.dataset.page==='delegations'){ renderDelegationCard(); renderAllDelegations(); }
     if(item.dataset.page==='salaries') renderSalariesTable();
-    if(item.dataset.page==='settings') renderMySignatureCard();
+    if(item.dataset.page==='settings'){ renderMySignatureCard(); renderBackupReminder(); }
     if(item.dataset.page==='calendar') renderCalendarPage();
     toggleSidebar(false);
   }
@@ -1700,6 +1724,66 @@ async function clearMySignature(){
   }catch(err){
     console.error('تعذر حذف التوقيع', err);
     alert('تعذر حذف التوقيع، حاول مجددًا');
+  }
+}
+
+function renderBackupReminder(){
+  const wrap = document.getElementById('backupReminderBanner');
+  if(!wrap) return;
+  const last = localStorage.getItem('ls_last_backup');
+  let show = true, text = '';
+  if(!last){
+    text = '⚠️ لم يتم عمل أي نسخة احتياطية على هذا الجهاز من قبل. يُنصح بعمل واحدة الآن.';
+  } else {
+    const days = Math.floor((Date.now() - new Date(last).getTime()) / 86400000);
+    if(days >= 7){
+      text = `⚠️ آخر نسخة احتياطية كانت منذ ${days} يومًا. يُنصح بعمل نسخة جديدة.`;
+    } else {
+      show = false;
+      wrap.innerHTML = `<div style="font-size:var(--fs-xs); color:var(--tx-muted); margin-bottom:10px;">✅ آخر نسخة احتياطية: منذ ${days===0?'اليوم':days+' يوم'}.</div>`;
+    }
+  }
+  if(show){
+    wrap.innerHTML = `<div class="card" style="background:var(--bg-warning); border-color:var(--warn); margin-bottom:14px; font-size:var(--fs-sm);">${text}</div>`;
+  }
+}
+
+async function backupNow(){
+  if(!isFullAdmin(currentUser.role)){ alert('هذا الإجراء متاح للأدمن فقط'); return; }
+  const btn = document.getElementById('backupNowBtn');
+  const originalText = btn.textContent;
+  btn.disabled = true; btn.textContent = '⏳ جارٍ التجهيز...';
+  try{
+    const {data, error} = await sb.rpc('admin_full_backup', {p_admin_id: currentUser.id});
+    if(error) throw error;
+    if(!data.success){ alert(data.error); return; }
+
+    const wb = XLSX.utils.book_new();
+    const sheets = [
+      {name:'الموظفون', rows: data.employees},
+      {name:'الطلبات', rows: data.requests},
+      {name:'سجل النشاطات', rows: data.activity_log},
+      {name:'طلبات إعادة تعيين كلمة المرور', rows: data.password_reset_requests}
+    ];
+    sheets.forEach(s=>{
+      const ws = XLSX.utils.json_to_sheet(s.rows.map(r=>{
+        // نحوّل حقل data (JSON متداخل) لنص عادي عشان يتقرأ في الإكسيل بدل ما يبوّظ الشكل
+        const flat = {...r};
+        if(flat.data && typeof flat.data === 'object') flat.data = JSON.stringify(flat.data);
+        return flat;
+      }));
+      XLSX.utils.book_append_sheet(wb, ws, s.name.slice(0,31)); // أسماء الشيتات في Excel محدودة بـ31 حرف
+    });
+    const stamp = new Date().toISOString().slice(0,19).replace(/[:T]/g,'-');
+    XLSX.writeFile(wb, `نسخة_احتياطية_${stamp}.xlsx`);
+    localStorage.setItem('ls_last_backup', new Date().toISOString());
+    renderBackupReminder();
+    alert('تم إنشاء النسخة الاحتياطية وتنزيلها بنجاح ✅');
+  }catch(err){
+    console.error('تعذر إنشاء النسخة الاحتياطية', err);
+    alert('تعذر إنشاء النسخة الاحتياطية، حاول مجددًا');
+  }finally{
+    btn.disabled = false; btn.textContent = originalText;
   }
 }
 
@@ -3549,6 +3633,33 @@ function handleEmployeeFile(evt){
 }
 
 /* ===================== INIT ===================== */
+/* آلية إعادة محاولة الاتصال بـSupabase عند توقف المشروع مؤقتًا
+   (Free Tier بيوقف المشروع بعد فترة خمول، ويحتاج ثواني يشتغل تاني
+   عند أول طلب). ده فحص خفيف بيحصل قبل أي تحميل بيانات فعلي، ومفيهوش
+   أي تغيير في منطق loadAll أو أي دالة تانية موجودة. */
+async function testSupabaseConnection(){
+  const {error} = await sb.from('employees').select('id').limit(1);
+  if(error) throw error;
+}
+async function waitForSupabaseReady(){
+  const messages = ['جاري تشغيل الخدمة، يرجى الانتظار...', 'يتم تجهيز النظام، برجاء الانتظار...', 'جارٍ الاتصال بالخادم...'];
+  const msgEl = document.getElementById('connectionRetryMessage');
+  for(let attempt=1; attempt<=3; attempt++){
+    try{
+      await testSupabaseConnection();
+      document.getElementById('connectionRetryOverlay').classList.remove('show');
+      return true;
+    }catch(err){
+      console.error(`محاولة الاتصال بالخدمة رقم ${attempt} فشلت`, err);
+      if(msgEl) msgEl.textContent = messages[attempt-1] || messages[0];
+      if(attempt < 3) await new Promise(r=>setTimeout(r, 5000));
+    }
+  }
+  document.getElementById('connectionLoadingState').style.display = 'none';
+  document.getElementById('connectionFailedState').style.display = 'block';
+  return false;
+}
+
 (async function init(){
   applyInitialDarkMode();
   try{
@@ -3559,6 +3670,9 @@ function handleEmployeeFile(evt){
     e.preventDefault();
     doLogin();
   });
+
+  const _ready = await waitForSupabaseReady();
+  if(!_ready) return; // البانر هيوريه زرار "إعادة المحاولة"، ومفيش داعي نكمّل التنفيذ
 
   await loadAll();
   document.getElementById('loginHint').textContent = '';
