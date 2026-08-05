@@ -1803,10 +1803,10 @@ function renderDelegationCard(){
 }
 async function submitDelegate(){
   const delegateId = document.getElementById('delegateSelect').value;
-  if(!delegateId){ alert('من فضلك اختر الموظف اللي هتفوّضه أولًا'); return; }
+  if(!delegateId){ alert('من فضلك اختر الموظف الذي ستفوّضه أولًا'); return; }
   const delegate = employees.find(e=>e.id===delegateId);
   const signature = await openSignaturePad(`توقيعك على تفويض ${delegate.name} بدلًا منك`);
-  if(!signature){ alert('لازم توقّع أولًا لتأكيد التفويض'); return; }
+  if(!signature){ alert('يجب التوقيع أولًا لتأكيد التفويض'); return; }
   try{
     const {data, error} = await sb.rpc('set_delegate', {p_actor_id: currentUser.id, p_delegate_id: delegateId, p_signature: signature});
     if(error) throw error;
@@ -2034,7 +2034,7 @@ async function bulkApproveSelected(){
   if(!ids.length) return;
   if(!confirm(`هل تريد اعتماد ${ids.length} طلب بنفس التوقيع؟`)) return;
   const signature = await openSignaturePad('توقيعك على اعتماد ' + ids.length + ' طلب دفعة واحدة');
-  if(!signature){ alert('لازم توقّع أولًا لتأكيد الاعتماد الجماعي'); return; }
+  if(!signature){ alert('يجب التوقيع أولًا لتأكيد الاعتماد الجماعي'); return; }
   let okCount = 0, failCount = 0;
   for(const id of ids){
     try{
@@ -2913,7 +2913,7 @@ async function submitRequest(){
     if(!confirm(`⚠️ تنبيه: لديك طلب أو أكثر لإجازة أخرى يتداخل مع هذه التواريخ:\n${list}\n\nهل ترغب في المتابعة وإرسال الطلب رغم ذلك؟`)) return;
   }
   const employeeSignature = await openSignaturePad('توقيعك على طلب الإجازة');
-  if(!employeeSignature){ alert('لازم توقّع أولًا لتأكيد إرسال الطلب'); return; }
+  if(!employeeSignature){ alert('يجب التوقيع أولًا لتأكيد إرسال الطلب'); return; }
   let resp;
   try{
     const {data, error} = await sb.rpc('create_leave_request', {
@@ -3222,7 +3222,7 @@ async function proceedApproval(id, decision, devOfficeApproved, substituteNeeded
   let signature = null;
   if(decision==='Approved'){
     signature = await openSignaturePad('توقيعك على اعتماد الطلب');
-    if(!signature){ alert('لازم توقّع أولًا لتأكيد الاعتماد'); return; }
+    if(!signature){ alert('يجب التوقيع أولًا لتأكيد الاعتماد'); return; }
   }
   let resp;
   try{
@@ -3381,7 +3381,7 @@ async function saveEmployee(){
   const employmentStatus = document.getElementById('eEmploymentStatus').value;
   if(!name || !empNo || !email){ alert('يرجى تعبئة كل الحقول المطلوبة'); return; }
   if(role==='SuperAdmin' && currentUser.role!=='SuperAdmin'){
-    alert('فقط الأدمن يقدر يمنح صلاحية أدمن لموظف آخر.');
+    alert('فقط الأدمن يمكنه منح صلاحية أدمن لموظف آخر.');
     return;
   }
   if(role==='Manager'){
@@ -3625,7 +3625,7 @@ function handleEmployeeFile(evt){
           ${tempCreds.length ? `<div style="margin-top:10px;font-size:var(--fs-sm);">📥 تم تنزيل ملف Excel فيه كل كلمات المرور المؤقتة تلقائيًا (<b>${tempCreds.length}</b> موظف). احتفظ به بأمان وسلّم كل موظف كلمة مروره.</div>` : ''}
         </div>`;
     }catch(err){
-      alert('تعذّر قراءة الملف. تأكد إنه بنفس تنسيق القالب (Excel أو CSV).');
+      alert('تعذّر قراءة الملف. تأكد من أن تنسيقه مطابق لتنسيق القالب (Excel أو CSV).');
     }
     evt.target.value='';
   };
