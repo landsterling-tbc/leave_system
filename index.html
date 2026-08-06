@@ -1098,21 +1098,6 @@ async function loadAll(){
     console.error('تعذر تحميل بيانات الموظفين من قاعدة البيانات', err);
     employees = [];
   }
-  if(!employees.length){
-    // تهيئة أولى فقط: يتم إنشاء حسابي الأدمن الافتراضيين بكلمة مرور مؤقتة مُشفّرة عبر RPC
-    for(const seed of [
-      {id:'SA001', empNo:'SA001', name:'أدمن 1', email:'admin1@company.com', position:'قسم التكنولوجيا — أدمن', role:'SuperAdmin', region:HQ_REGION, balance:21},
-      {id:'SA002', empNo:'SA002', name:'أدمن 2', email:'admin2@company.com', position:'قسم التكنولوجيا — أدمن', role:'SuperAdmin', region:HQ_REGION, balance:21}
-    ]){
-      await sb.rpc('admin_create_employee', {
-        p_admin_id: seed.id, p_id: seed.id, p_emp_no: seed.empNo, p_name: seed.name, p_email: seed.email,
-        p_position: seed.position, p_role: seed.role, p_region: seed.region, p_balance: seed.balance,
-        p_temp_password: 'admin123'
-      });
-    }
-    const {data} = await sb.from('employees').select(EMP_SAFE_COLUMNS).order('created_at');
-    employees = (data||[]).map(rowToEmployee);
-  }
   try{
     const {data, error} = await sb.from('requests').select('*').order('created_at');
     if(error) throw error;
